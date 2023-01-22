@@ -15,14 +15,29 @@
  * @author Toru Nagashima <https://github.com/mysticatea>
  */
 
-import util from "util";
+import util from 'util';
+
+interface DependencyData<T> {
+    definition?: T;
+    error?: Error | null;
+    filePath?: string | null;
+    id: string;
+    importerName: string;
+    importerPath: string;
+}
 
 /**
  * The class is to store parsers or plugins.
  * This class hides the loaded object from `JSON.stringify()` and `console.log`.
  * @template T
  */
-class ConfigDependency {
+class ConfigDependency<T = any> {
+    definition: T | null;
+    error: Error | null;
+    filePath: string | null;
+    id: string;
+    importerName: string;
+    importerPath: string;
 
     /**
      * Initialize this instance.
@@ -34,15 +49,8 @@ class ConfigDependency {
      * @param {string} data.importerName The name of the config file which loads this dependency.
      * @param {string} data.importerPath The path to the config file which loads this dependency.
      */
-    constructor({
-        definition = null,
-        error = null,
-        filePath = null,
-        id,
-        importerName,
-        importerPath
-    }) {
-
+    constructor(data: DependencyData<T>) {
+        const { definition = null, error = null, filePath = null, id, importerName, importerPath } = data;
         /**
          * The loaded dependency if the loading succeeded.
          * @type {T|null}
@@ -80,7 +88,6 @@ class ConfigDependency {
         this.importerPath = importerPath;
     }
 
-    // eslint-disable-next-line jsdoc/require-description
     /**
      * @returns {Object} a JSON compatible object.
      */
@@ -95,15 +102,11 @@ class ConfigDependency {
         return obj;
     }
 
-    // eslint-disable-next-line jsdoc/require-description
     /**
      * @returns {Object} an object to display by `console.log()`.
      */
     [util.inspect.custom]() {
-        const {
-            definition: _ignore, // eslint-disable-line no-unused-vars
-            ...obj
-        } = this;
+        const { definition: _ignore, ...obj } = this;
 
         return obj;
     }

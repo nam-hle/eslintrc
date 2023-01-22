@@ -15,7 +15,17 @@
  * @author Toru Nagashima <https://github.com/mysticatea>
  */
 
-import { IgnorePattern } from "./ignore-pattern.js";
+import {
+    EnvsMap,
+    GlobalsMap,
+    ParserOptions,
+    ResolvedParser,
+    ResolvedPluginsMap,
+    Settings,
+    SeverityConf
+} from '../shared/types.js';
+
+import { IgnorePattern, IgnorePredicate } from './ignore-pattern.js';
 
 // For VSCode intellisense
 /** @typedef {import("../../shared/types").ConfigData} ConfigData */
@@ -31,7 +41,7 @@ import { IgnorePattern } from "./ignore-pattern.js";
  * @param {T[]} ys The array that may be the first part of `xs`.
  * @returns {boolean} `true` if `xs` starts with `ys`.
  */
-function startsWith(xs, ys) {
+function startsWith<T>(xs: readonly T[], ys: readonly T[]) {
     return xs.length >= ys.length && ys.every((y, i) => y === xs[i]);
 }
 
@@ -39,13 +49,24 @@ function startsWith(xs, ys) {
  * The class for extracted config data.
  */
 class ExtractedConfig {
+    env: EnvsMap;
+    configNameOfNoInlineConfig: string;
+    globals: GlobalsMap;
+    ignores: IgnorePredicate | undefined;
+    noInlineConfig: boolean | undefined;
+    parser: ResolvedParser | null;
+    parserOptions: ParserOptions;
+    plugins: ResolvedPluginsMap;
+    processor: string | null;
+    reportUnusedDisableDirectives: boolean | undefined;
+    rules: Record<string, [SeverityConf, ...unknown[]]>;
+    settings: Settings;
     constructor() {
-
         /**
          * The config name what `noInlineConfig` setting came from.
          * @type {string}
          */
-        this.configNameOfNoInlineConfig = "";
+        this.configNameOfNoInlineConfig = '';
 
         /**
          * Environments.
@@ -61,19 +82,19 @@ class ExtractedConfig {
 
         /**
          * The glob patterns that ignore to lint.
-         * @type {(((filePath:string, dot?:boolean) => boolean) & { basePath:string; patterns:string[] }) | undefined}
+         * @type {IgnorePredicate | undefined}
          */
-        this.ignores = void 0;
+        this.ignores = undefined;
 
         /**
          * The flag that disables directive comments.
          * @type {boolean|undefined}
          */
-        this.noInlineConfig = void 0;
+        this.noInlineConfig = undefined;
 
         /**
          * Parser definition.
-         * @type {DependentParser|null}
+         * @type {Parser|null}
          */
         this.parser = null;
 
@@ -85,7 +106,7 @@ class ExtractedConfig {
 
         /**
          * Plugin definitions.
-         * @type {Record<string, DependentPlugin>}
+         * @type {Record<string, Plugin>}
          */
         this.plugins = {};
 
@@ -119,26 +140,18 @@ class ExtractedConfig {
      * @returns {ConfigData} The converted object.
      */
     toCompatibleObjectAsConfigFileContent() {
-        const {
-            /* eslint-disable no-unused-vars */
-            configNameOfNoInlineConfig: _ignore1,
-            processor: _ignore2,
-            /* eslint-enable no-unused-vars */
-            ignores,
-            ...config
-        } = this;
+        const { configNameOfNoInlineConfig, processor, ignores, ...config } = this;
 
-        config.parser = config.parser && config.parser.filePath;
-        config.plugins = Object.keys(config.plugins).filter(Boolean).reverse();
-        config.ignorePatterns = ignores ? ignores.patterns : [];
+        const parser = config.parser?.filePath ?? null;
+        const plugins = Object.keys(config.plugins).filter(Boolean).reverse();
+        let ignorePatterns = ignores?.patterns ?? [];
 
         // Strip the default patterns from `ignorePatterns`.
-        if (startsWith(config.ignorePatterns, IgnorePattern.DefaultPatterns)) {
-            config.ignorePatterns =
-                config.ignorePatterns.slice(IgnorePattern.DefaultPatterns.length);
+        if (startsWith(ignorePatterns, IgnorePattern.DefaultPatterns)) {
+            ignorePatterns = ignorePatterns.slice(IgnorePattern.DefaultPatterns.length);
         }
 
-        return config;
+        return { ...config, parser, plugins, ignorePatterns };
     }
 }
 

@@ -5,5 +5,4 @@
 // since Jest doesn't respect `module` outside of ESM mode it still works in
 // this case (and the `require` in _this_ file does specify the extension).
 
-// eslint-disable-next-line no-undef
-module.exports = require("./dist/eslintrc-universal.cjs");
+module.exports = require('./bundle/eslintrc-universal.cjs');

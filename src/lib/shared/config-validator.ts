@@ -9,23 +9,32 @@
 // Requirements
 //------------------------------------------------------------------------------
 
-import util from "util";
-import * as ConfigOps from "./config-ops.js";
-import { emitDeprecationWarning } from "./deprecation-warnings.js";
-import ajvOrig from "./ajv.js";
-import configSchema from "../../conf/config-schema.js";
-import BuiltInEnvironments from "../../conf/environments.js";
+import util from 'util';
+
+import { ErrorObject, ValidateFunction } from 'ajv';
+import { JSONSchema4 } from 'json-schema';
+
+import configSchema from '../../conf/config-schema.js';
+import BuiltInEnvironments from '../../conf/environments.js';
+
+import { ConfigArray } from '../config-array/index.js';
+
+import ajvOrig from './ajv.js';
+import { assert } from './assert.js';
+import * as ConfigOps from './config-ops.js';
+import { emitDeprecationWarning } from './deprecation-warnings.js';
+import { ConfigData, Environment, Processor, RuleConf, SeverityConf, SeverityNumber, SeverityString } from './types.js';
 
 const ajv = ajvOrig();
 
-const ruleValidators = new WeakMap();
+const ruleValidators = new WeakMap<Rule, ValidateFunction>();
 const noop = Function.prototype;
 
 //------------------------------------------------------------------------------
 // Private
 //------------------------------------------------------------------------------
-let validateSchema;
-const severityMap = {
+let validateSchema: ValidateFunction;
+const severityMap: Record<SeverityString, SeverityNumber> = {
     error: 2,
     warn: 1,
     off: 0
@@ -36,8 +45,14 @@ const validated = new WeakSet();
 //-----------------------------------------------------------------------------
 // Exports
 //-----------------------------------------------------------------------------
+interface Rule {
+    schema?: JSONSchema4;
+    meta?: { schema?: JSONSchema4 };
+    create: (...args: any[]) => any;
+}
 
 export default class ConfigValidator {
+    builtInRules: Map<string, Rule>;
     constructor({ builtInRules = new Map() } = {}) {
         this.builtInRules = builtInRules;
     }
@@ -45,31 +60,30 @@ export default class ConfigValidator {
     /**
      * Gets a complete options schema for a rule.
      * @param {{create: Function, schema: (Array|null)}} rule A new-style rule object
-     * @returns {Object} JSON Schema for the rule's options.
+     * @returns {JSONSchema4 | null} JSON Schema for the rule's options.
      */
-    getRuleOptionsSchema(rule) {
+    getRuleOptionsSchema(rule: Rule | null): JSONSchema4 | null {
         if (!rule) {
             return null;
         }
 
-        const schema = rule.schema || rule.meta && rule.meta.schema;
+        const schema = rule.schema || rule.meta?.schema;
 
         // Given a tuple of schemas, insert warning level at the beginning
         if (Array.isArray(schema)) {
             if (schema.length) {
                 return {
-                    type: "array",
+                    type: 'array',
                     items: schema,
                     minItems: 0,
                     maxItems: schema.length
                 };
             }
             return {
-                type: "array",
+                type: 'array',
                 minItems: 0,
                 maxItems: 0
             };
-
         }
 
         // Given a full schema, leave it alone
@@ -78,28 +92,33 @@ export default class ConfigValidator {
 
     /**
      * Validates a rule's severity and returns the severity value. Throws an error if the severity is invalid.
-     * @param {options} options The given options for the rule.
-     * @returns {number|string} The rule's severity value
+     * @param {RuleConf} options The given options for the rule.
+     * @returns {SeverityConf} The rule's severity value
      */
-    validateRuleSeverity(options) {
+    validateRuleSeverity(options: RuleConf): SeverityConf {
         const severity = Array.isArray(options) ? options[0] : options;
-        const normSeverity = typeof severity === "string" ? severityMap[severity.toLowerCase()] : severity;
+        const normSeverity =
+            typeof severity === 'string' ? severityMap[severity.toLowerCase() as SeverityString] : severity;
 
         if (normSeverity === 0 || normSeverity === 1 || normSeverity === 2) {
             return normSeverity;
         }
 
-        throw new Error(`\tSeverity should be one of the following: 0 = off, 1 = warn, 2 = error (you passed '${util.inspect(severity).replace(/'/gu, "\"").replace(/\n/gu, "")}').\n`);
-
+        throw new Error(
+            `\tSeverity should be one of the following: 0 = off, 1 = warn, 2 = error (you passed '${util
+                .inspect(severity)
+                .replace(/'/gu, '"')
+                .replace(/\n/gu, '')}').\n`
+        );
     }
 
     /**
      * Validates the non-severity options passed to a rule, based on its schema.
-     * @param {{create: Function}} rule The rule to validate
+     * @param {Rule} rule The rule to validate
      * @param {Array} localOptions The options for the rule, excluding severity
      * @returns {void}
      */
-    validateRuleSchema(rule, localOptions) {
+    validateRuleSchema(rule: Rule, localOptions: unknown[]) {
         if (!ruleValidators.has(rule)) {
             const schema = this.getRuleOptionsSchema(rule);
 
@@ -113,9 +132,11 @@ export default class ConfigValidator {
         if (validateRule) {
             validateRule(localOptions);
             if (validateRule.errors) {
-                throw new Error(validateRule.errors.map(
-                    error => `\tValue ${JSON.stringify(error.data)} ${error.message}.\n`
-                ).join(""));
+                throw new Error(
+                    validateRule.errors
+                        .map((error) => `\tValue ${JSON.stringify(error.data)} ${error.message}.\n`)
+                        .join('')
+                );
             }
         }
     }
@@ -129,17 +150,17 @@ export default class ConfigValidator {
      * no source is prepended to the message.
      * @returns {void}
      */
-    validateRuleOptions(rule, ruleId, options, source = null) {
+    validateRuleOptions(rule: Rule, ruleId: string, options: RuleConf, source: string | null = null) {
         try {
             const severity = this.validateRuleSeverity(options);
 
             if (severity !== 0) {
                 this.validateRuleSchema(rule, Array.isArray(options) ? options.slice(1) : []);
             }
-        } catch (err) {
+        } catch (err: any) {
             const enhancedMessage = `Configuration for rule "${ruleId}" is invalid:\n${err.message}`;
 
-            if (typeof source === "string") {
+            if (typeof source === 'string') {
                 throw new Error(`${source}:\n\t${enhancedMessage}`);
             } else {
                 throw new Error(enhancedMessage);
@@ -151,21 +172,16 @@ export default class ConfigValidator {
      * Validates an environment object
      * @param {Object} environment The environment config object to validate.
      * @param {string} source The name of the configuration source to report in any errors.
-     * @param {function(envId:string): Object} [getAdditionalEnv] A map from strings to loaded environments.
+     * @param {function(envId:string): Environment} [getAdditionalEnv] A map from strings to loaded environments.
      * @returns {void}
      */
-    validateEnvironment(
-        environment,
-        source,
-        getAdditionalEnv = noop
-    ) {
-
+    validateEnvironment(environment: object | undefined, source: string, getAdditionalEnv = noop) {
         // not having an environment is ok
         if (!environment) {
             return;
         }
 
-        Object.keys(environment).forEach(id => {
+        Object.keys(environment).forEach((id) => {
             const env = getAdditionalEnv(id) || BuiltInEnvironments.get(id) || null;
 
             if (!env) {
@@ -178,21 +194,17 @@ export default class ConfigValidator {
 
     /**
      * Validates a rules config object
-     * @param {Object} rulesConfig The rules config object to validate.
+     * @param {Record<string, RuleConf> | undefined} rulesConfig The rules config object to validate.
      * @param {string} source The name of the configuration source to report in any errors.
-     * @param {function(ruleId:string): Object} getAdditionalRule A map from strings to loaded rules
+     * @param {function(ruleId:string): Rule} getAdditionalRule A map from strings to loaded rules
      * @returns {void}
      */
-    validateRules(
-        rulesConfig,
-        source,
-        getAdditionalRule = noop
-    ) {
+    validateRules(rulesConfig: Record<string, RuleConf> | undefined, source: string, getAdditionalRule = noop) {
         if (!rulesConfig) {
             return;
         }
 
-        Object.keys(rulesConfig).forEach(id => {
+        Object.keys(rulesConfig).forEach((id) => {
             const rule = getAdditionalRule(id) || this.builtInRules.get(id) || null;
 
             this.validateRuleOptions(rule, id, rulesConfig[id], source);
@@ -205,19 +217,20 @@ export default class ConfigValidator {
      * @param {string|null} source The name of the configuration source to report in the event of an error.
      * @returns {void}
      */
-    validateGlobals(globalsConfig, source = null) {
+    validateGlobals(globalsConfig: object | undefined, source: string | null = null) {
         if (!globalsConfig) {
             return;
         }
 
-        Object.entries(globalsConfig)
-            .forEach(([configuredGlobal, configuredValue]) => {
-                try {
-                    ConfigOps.normalizeConfigGlobal(configuredValue);
-                } catch (err) {
-                    throw new Error(`ESLint configuration of global '${configuredGlobal}' in ${source} is invalid:\n${err.message}`);
-                }
-            });
+        Object.entries(globalsConfig).forEach(([configuredGlobal, configuredValue]) => {
+            try {
+                ConfigOps.normalizeConfigGlobal(configuredValue);
+            } catch (err: any) {
+                throw new Error(
+                    `ESLint configuration of global '${configuredGlobal}' in ${source} is invalid:\n${err.message}`
+                );
+            }
+        });
     }
 
     /**
@@ -227,53 +240,64 @@ export default class ConfigValidator {
      * @param {function(id:string): Processor} getProcessor The getter of defined processors.
      * @returns {void}
      */
-    validateProcessor(processorName, source, getProcessor) {
+    validateProcessor(processorName: string | undefined, source: string, getProcessor: (id: string) => Processor) {
         if (processorName && !getProcessor(processorName)) {
-            throw new Error(`ESLint configuration of processor in '${source}' is invalid: '${processorName}' was not found.`);
+            throw new Error(
+                `ESLint configuration of processor in '${source}' is invalid: '${processorName}' was not found.`
+            );
         }
     }
 
     /**
      * Formats an array of schema validation errors.
-     * @param {Array} errors An array of error messages to format.
+     * @param {ErrorObject[]} errors An array of error messages to format.
      * @returns {string} Formatted error message
      */
-    formatErrors(errors) {
-        return errors.map(error => {
-            if (error.keyword === "additionalProperties") {
-                const formattedPropertyPath = error.dataPath.length ? `${error.dataPath.slice(1)}.${error.params.additionalProperty}` : error.params.additionalProperty;
+    formatErrors(errors: ErrorObject[]) {
+        return errors
+            .map((error) => {
+                if (error.keyword === 'additionalProperties') {
+                    assert('additionalProperty' in error.params);
 
-                return `Unexpected top-level property "${formattedPropertyPath}"`;
-            }
-            if (error.keyword === "type") {
-                const formattedField = error.dataPath.slice(1);
-                const formattedExpectedType = Array.isArray(error.schema) ? error.schema.join("/") : error.schema;
-                const formattedValue = JSON.stringify(error.data);
+                    const formattedPropertyPath = error.dataPath.length
+                        ? `${error.dataPath.slice(1)}.${error.params.additionalProperty}`
+                        : error.params.additionalProperty;
 
-                return `Property "${formattedField}" is the wrong type (expected ${formattedExpectedType} but got \`${formattedValue}\`)`;
-            }
+                    return `Unexpected top-level property "${formattedPropertyPath}"`;
+                }
+                if (error.keyword === 'type') {
+                    const formattedField = error.dataPath.slice(1);
+                    const formattedExpectedType = Array.isArray(error.schema) ? error.schema.join('/') : error.schema;
+                    const formattedValue = JSON.stringify(error.data);
 
-            const field = error.dataPath[0] === "." ? error.dataPath.slice(1) : error.dataPath;
+                    return `Property "${formattedField}" is the wrong type (expected ${formattedExpectedType} but got \`${formattedValue}\`)`;
+                }
 
-            return `"${field}" ${error.message}. Value: ${JSON.stringify(error.data)}`;
-        }).map(message => `\t- ${message}.\n`).join("");
+                const field = error.dataPath[0] === '.' ? error.dataPath.slice(1) : error.dataPath;
+
+                return `"${field}" ${error.message}. Value: ${JSON.stringify(error.data)}`;
+            })
+            .map((message) => `\t- ${message}.\n`)
+            .join('');
     }
 
     /**
      * Validates the top level properties of the config object.
      * @param {Object} config The config object to validate.
-     * @param {string} source The name of the configuration source to report in any errors.
+     * @param {string} [source] The name of the configuration source to report in any errors.
      * @returns {void}
      */
-    validateConfigSchema(config, source = null) {
-        validateSchema = validateSchema || ajv.compile(configSchema);
+    validateConfigSchema(config: object, source: string) {
+        validateSchema ||= ajv.compile(configSchema);
 
         if (!validateSchema(config)) {
-            throw new Error(`ESLint configuration in ${source} is invalid:\n${this.formatErrors(validateSchema.errors)}`);
+            throw new Error(
+                `ESLint configuration in ${source} is invalid:\n${this.formatErrors(validateSchema.errors ?? [])}`
+            );
         }
 
-        if (Object.hasOwnProperty.call(config, "ecmaFeatures")) {
-            emitDeprecationWarning(source, "ESLINT_LEGACY_ECMAFEATURES");
+        if (Object.hasOwnProperty.call(config, 'ecmaFeatures')) {
+            emitDeprecationWarning(source, 'ESLINT_LEGACY_ECMAFEATURES');
         }
     }
 
@@ -281,11 +305,16 @@ export default class ConfigValidator {
      * Validates an entire config object.
      * @param {Object} config The config object to validate.
      * @param {string} source The name of the configuration source to report in any errors.
-     * @param {function(ruleId:string): Object} [getAdditionalRule] A map from strings to loaded rules.
-     * @param {function(envId:string): Object} [getAdditionalEnv] A map from strings to loaded envs.
+     * @param {function(ruleId:string): Rule} [getAdditionalRule] A map from strings to loaded rules.
+     * @param {function(envId:string): Environment} [getAdditionalEnv] A map from strings to loaded envs.
      * @returns {void}
      */
-    validate(config, source, getAdditionalRule, getAdditionalEnv) {
+    validate(
+        config: ConfigData,
+        source: string,
+        getAdditionalRule?: (ruleId: string) => Rule,
+        getAdditionalEnv?: (envId: string) => Environment
+    ) {
         this.validateConfigSchema(config, source);
         this.validateRules(config.rules, source, getAdditionalRule);
         this.validateEnvironment(config.env, source, getAdditionalEnv);
@@ -303,7 +332,7 @@ export default class ConfigValidator {
      * @param {ConfigArray} configArray The config array to validate.
      * @returns {void}
      */
-    validateConfigArray(configArray) {
+    validateConfigArray(configArray: ConfigArray) {
         const getPluginEnv = Map.prototype.get.bind(configArray.pluginEnvironments);
         const getPluginProcessor = Map.prototype.get.bind(configArray.pluginProcessors);
         const getPluginRule = Map.prototype.get.bind(configArray.pluginRules);
@@ -321,5 +350,4 @@ export default class ConfigValidator {
             this.validateRules(element.rules, element.name, getPluginRule);
         }
     }
-
 }
