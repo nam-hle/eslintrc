@@ -17,10 +17,10 @@
     }
   },
   "files": [
-    "lib",
-    "conf",
-    "LICENSE",
+    "src",
     "dist",
+    "bundle",
+    "LICENSE",
     "universal.js"
   ],
   "publishConfig": {
