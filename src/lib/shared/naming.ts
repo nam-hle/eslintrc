@@ -53,7 +53,7 @@ function normalizePackageName(name: string, prefix: string) {
  * @param {string} prefix The prefix to remove.
  * @returns {string} The term without prefix.
  */
-function getShorthandName(fullname: string, prefix: string) {
+function getShorthandName(fullname: string, prefix: string): string {
     if (fullname[0] === '@') {
         let matchResult = new RegExp(`^(@[^/]+)/${prefix}$`, 'u').exec(fullname);
 

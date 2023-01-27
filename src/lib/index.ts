@@ -17,10 +17,7 @@ import {
     getUsedExtractedConfigs,
     OverrideTester
 } from './config-array/index.js';
-import {
-    ConfigArrayFactory,
-    createContext as createConfigArrayFactoryContext
-} from './config-array-factory.js';
+import { ConfigArrayFactory, createContext as createConfigArrayFactoryContext } from './config-array-factory.js';
 import { FlatCompat } from './flat-compat.js';
 import * as ConfigOps from './shared/config-ops.js';
 import ConfigValidator from './shared/config-validator.js';
@@ -51,3 +48,5 @@ const Legacy = {
 };
 
 export { Legacy, FlatCompat };
+export * from './shared/types.js';
+export { ConfigArray, ExtractedConfig, CascadingConfigArrayFactory };

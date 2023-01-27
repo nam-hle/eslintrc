@@ -23,7 +23,16 @@ import ajvOrig from './ajv.js';
 import { assert } from './assert.js';
 import * as ConfigOps from './config-ops.js';
 import { emitDeprecationWarning } from './deprecation-warnings.js';
-import { ConfigData, Environment, Processor, RuleConf, SeverityConf, SeverityNumber, SeverityString } from './types.js';
+import {
+    ConfigData,
+    Environment,
+    Processor,
+    Rule,
+    RuleConf,
+    SeverityConf,
+    SeverityNumber,
+    SeverityString
+} from './types.js';
 
 const ajv = ajvOrig();
 
@@ -45,11 +54,6 @@ const validated = new WeakSet();
 //-----------------------------------------------------------------------------
 // Exports
 //-----------------------------------------------------------------------------
-interface Rule {
-    schema?: JSONSchema4;
-    meta?: { schema?: JSONSchema4 };
-    create: (...args: any[]) => any;
-}
 
 export default class ConfigValidator {
     builtInRules: Map<string, Rule>;

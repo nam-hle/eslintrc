@@ -128,12 +128,14 @@ export interface OverrideConfigData {
  * @property {Record<string, string[]>} [visitorKeys] The visitor keys of the AST.
  */
 
-interface ParseResult {
+export interface ParseResult {
     ast: Record<string, any>;
-    scopeManager: any;
+    scopeManager: ScopeManager;
     services: Record<string, any>;
     visitorKeys: Record<string, string[]>;
 }
+
+export interface ScopeManager {}
 
 /**
  * @typedef {Object} Parser
@@ -176,20 +178,20 @@ export interface Environment {
  * @property {Array<{desc?: string, messageId?: string, fix: {range: [number, number], text: string}}>} [suggestions] Information for suggestions.
  */
 
-interface Fix {
+export interface Fix {
     range: [number, number];
     text: string;
 }
 export interface LintMessage {
     column: number;
-    endColumn?: number;
-    endLine?: number;
+    endColumn: number;
+    endLine: number;
     fatal: boolean;
     fix?: Fix;
     line: number;
     message: string;
-    ruleId: string | null;
-    severity: 0 | 1 | 2;
+    ruleId: string;
+    severity: SeverityNumber;
     suggestions?: Array<{
         desc?: string;
         messageId?: string;
@@ -252,7 +254,8 @@ export interface RuleMetaDocs {
 export interface RuleMeta {
     deprecated?: boolean;
     docs: RuleMetaDocs;
-    fixable?: 'code' | 'whitespace';
+    fixable?: 'code' | 'whitespace' | 'problem' | 'suggestion' | 'layout';
+    hasSuggestions?: boolean;
     messages?: Record<string, string>;
     replacedBy?: string[];
     schema: JSONSchema4;
@@ -266,8 +269,9 @@ export interface RuleMeta {
  */
 
 export interface Rule {
+    schema?: JSONSchema4;
+    meta?: { schema?: JSONSchema4 };
     create: (...args: any[]) => any;
-    meta: RuleMeta;
 }
 
 /**
@@ -279,6 +283,7 @@ export interface Rule {
  */
 
 export interface Plugin {
+    parsers?: Record<string, any>;
     configs?: Record<string, ConfigData>;
     environments?: Record<string, Environment>;
     processors?: Record<string, Processor>;
