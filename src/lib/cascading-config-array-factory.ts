@@ -69,13 +69,13 @@ const debug = debugOrig('eslintrc:cascading-config-array-factory');
 
 interface CascadingConfigArrayFactoryOptions {
     additionalPluginPool?: Map<string, Plugin>;
-    baseConfig?: ConfigData;
-    cliConfig?: ConfigData;
+    baseConfig?: ConfigData | null;
+    cliConfig?: ConfigData | null;
     cwd?: string;
-    ignorePath?: string;
+    ignorePath?: string | null;
     rulePaths?: string[];
     builtInRules?: Map<string, Rule>;
-    specificConfigPath?: string;
+    specificConfigPath?: string | null;
     useEslintrc?: boolean;
     loadRules?: (rulesPath: string, cwd: string) => Rule;
     resolver?: ModuleResolver;
@@ -83,7 +83,7 @@ interface CascadingConfigArrayFactoryOptions {
     eslintRecommendedPath?: string;
     getEslintAllConfig?: () => ConfigData;
     getEslintRecommendedConfig?: () => ConfigData;
-    resolvePluginsRelativeTo?: string;
+    resolvePluginsRelativeTo?: string | null;
 }
 
 /**
@@ -262,7 +262,7 @@ class CascadingConfigArrayFactory {
         const configArrayFactory = new ConfigArrayFactory({
             additionalPluginPool,
             cwd,
-            resolvePluginsRelativeTo,
+            resolvePluginsRelativeTo: resolvePluginsRelativeTo ?? undefined,
             builtInRules,
             resolver,
             eslintRecommendedPath,
@@ -284,7 +284,7 @@ class CascadingConfigArrayFactory {
                 cliConfigData: cliConfigData ?? undefined,
                 configArrayFactory,
                 cwd,
-                ignorePath,
+                ignorePath: ignorePath ?? undefined,
                 specificConfigPath
             }),
             cliConfigData: cliConfigData ?? undefined,
@@ -292,7 +292,7 @@ class CascadingConfigArrayFactory {
             configCache: new Map(),
             cwd,
             finalizeCache: new WeakMap(),
-            ignorePath,
+            ignorePath: ignorePath ?? undefined,
             rulePaths,
             specificConfigPath,
             useEslintrc,
@@ -322,7 +322,8 @@ class CascadingConfigArrayFactory {
      * @param {boolean} [options.ignoreNotFoundError] If `true` then it doesn't throw `ConfigurationNotFoundError`.
      * @returns {ConfigArray} The config array of the file.
      */
-    getConfigArrayForFile(filePath: string, { ignoreNotFoundError = false } = {}) {
+    getConfigArrayForFile(filePath?: string, options?: { ignoreNotFoundError: boolean }) {
+        const ignoreNotFoundError = options?.ignoreNotFoundError ?? false;
         const slots = internalSlotsMap.get(this);
         assert(!!slots);
 

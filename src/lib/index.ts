@@ -23,6 +23,32 @@ import * as ConfigOps from './shared/config-ops.js';
 import ConfigValidator from './shared/config-validator.js';
 import * as naming from './shared/naming.js';
 import * as ModuleResolver from './shared/relative-module-resolver.js';
+import {
+    ConfigData,
+    LintMessage,
+    OverrideConfigData,
+    Processor,
+    Rule,
+    ParseResult,
+    Fix,
+    RuleMeta,
+    RuleMetaDocs,
+    SeverityNumber,
+    SuggestionResult,
+    EcmaFeatures,
+    ParserOptions,
+    Parser,
+    GlobalConf,
+    SeverityConf,
+    SeverityString,
+    ScopeManager,
+    EnvsMap,
+    GlobalsMap,
+    RuleConf,
+    Environment,
+    Plugin,
+    DeprecatedRuleInfo
+} from './shared/types.js';
 
 //-----------------------------------------------------------------------------
 // Exports
@@ -47,6 +73,34 @@ const Legacy = {
     naming
 };
 
-export { Legacy, FlatCompat };
-export * from './shared/types.js';
-export { ConfigArray, ExtractedConfig, CascadingConfigArrayFactory };
+export {
+    Legacy,
+    FlatCompat,
+    type CascadingConfigArrayFactory,
+    type ConfigData,
+    type LintMessage,
+    type OverrideConfigData,
+    type Processor,
+    type Rule,
+    type ParseResult,
+    type Fix,
+    type RuleMeta,
+    type RuleMetaDocs,
+    type SeverityNumber,
+    type SuggestionResult,
+    type EcmaFeatures,
+    type ParserOptions,
+    type ConfigArray,
+    type Parser,
+    type GlobalConf,
+    type SeverityConf,
+    type SeverityString,
+    type ScopeManager,
+    type ExtractedConfig,
+    type EnvsMap,
+    type GlobalsMap,
+    type RuleConf,
+    type Environment,
+    type Plugin,
+    type DeprecatedRuleInfo
+};

@@ -178,14 +178,16 @@ export interface Environment {
  * @property {Array<{desc?: string, messageId?: string, fix: {range: [number, number], text: string}}>} [suggestions] Information for suggestions.
  */
 
+export type Range = [number, number];
+
 export interface Fix {
-    range: [number, number];
+    range: Range;
     text: string;
 }
 export interface LintMessage {
     column: number;
-    endColumn: number;
-    endLine: number;
+    endColumn?: number;
+    endLine?: number;
     fatal: boolean;
     fix?: Fix;
     line: number;
